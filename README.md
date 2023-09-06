@@ -378,4 +378,383 @@ from . import views
 
 urlpatterns = [
     path('contact/', views.contact_view, name='contact_view'),
-]```
+]
+```
+
+## User Authentication 
+
+Django includes a built-in User model for handling user accounts. You can use the default User model or create a custom user model to extend it with additional fields. In your myapp/models.py file:
+
+**Default:** ```from django.contrib.auth.models import User```
+
+**Custom:** 
+
+```
+from django.contrib.auth.models import AbstractUser
+
+class CustomUser(AbstractUser):
+    # Add custom fields here
+    age = models.PositiveIntegerField(null=True, blank=True)
+```
+
+- When creating custom user models, make sure you add 'related_name' argument to your custom fields to avoid a clash in reverse accessor names between the default Django User model and your custom CustomUser model. By default, Django generates reverse accessors with the same names. You're dealing with the groups and user_permissions fields in a custom user model (CustomUser) that extends Django's built-in User model.
+
+
+- ```related_name='custom_user_set':``` This line specifies a custom name for the reverse relation from auth.Group (Django's built-in group model) to the CustomUser model. Instead of using the default reverse relation name, which would be user_set, it's changed to custom_user_set.
+
+```
+# myapp/models.py
+from django.contrib.auth.models import AbstractUser
+from django.db import models
+
+class CustomUser(AbstractUser):
+    # Add custom fields here
+    age = models.PositiveIntegerField(null=True, blank=True)
+    
+    # Add related_name to avoid clashes with the default User model
+    groups = models.ManyToManyField(
+        'auth.Group',
+        related_name='custom_user_set',
+        blank=True,
+        verbose_name='groups',
+        help_text='The groups this user belongs to. A user will get all permissions granted to each of their groups.',
+    )
+    user_permissions = models.ManyToManyField(
+        'auth.Permission',
+        related_name='custom_user_set',
+        blank=True,
+        verbose_name='user permissions',
+        help_text='Specific permissions for this user.',
+        error_messages={
+            'unique': 'This user permission already exists.',
+        },
+    )
+```
+
+- Custom User Creation Form: You should create a custom user creation form (usually in forms.py) that includes the age field along with other fields like username, email, and password
+
+```
+from django import forms
+from .models import CustomUser
+
+class CustomUserCreationForm(UserCreationForm):
+    class Meta:
+        model = CustomUser
+        fields = ('username', 'email')
+```
+
+- View Logic: In your registration view or user creation logic, you would use this custom form to handle user input, including the age field. Here's a simplified example of a registration view that uses the form:
+
+```
+from .forms import CustomUserCreationForm
+
+def register(request):
+    if request.method == 'POST':
+        form = CustomUserCreationForm(request.POST)
+        if form.is_valid():
+            user = form.save()
+            user.email = form.cleaned_data['email']
+            user.save()
+            
+            # Get or create the 'All Users' group
+            group, created = Group.objects.get_or_create(name='All Users')
+
+            # Add the user to the 'All Users' group
+            user.groups.add(group)
+            
+            login(request, user)  # Log the user in
+            return redirect('profile')  # Redirect to user's profile
+    else:
+        form = CustomUserCreationForm()
+    return render(request, 'registration/register.html', {'form': form})
+```
+
+- Ensure your AUTH_USER_MODEL setting is correctly configured: In your project's settings (usually settings.py), make sure you have configured the AUTH_USER_MODEL setting to point to your custom user model: ```AUTH_USER_MODEL = 'myapp.CustomUser'```
+
+**User Registration**
+
+Create a registration view in myapp/views.py to handle user registration. Use Django's built-in UserCreationForm for simplicity:
+
+```
+from django.contrib.auth.forms import UserCreationForm
+from django.contrib.auth import login
+from django.shortcuts import render, redirect
+from django.contrib.auth.decorators import login_required
+
+
+@login_required
+def profile(request):
+    return render(request, 'profile.html')
+
+def register(request):
+    if request.method == 'POST':
+        form = UserCreationForm(request.POST)
+        if form.is_valid():
+            user = form.save()
+            login(request, user)  # Log the user in
+            return render(request, 'accounts/profile.html')  # Redirect to user's profile by using the 'profile' view or url
+    else:
+        form = UserCreationForm()
+    return render(request, 'registration/register.html', {'form': form})
+```
+
+create **"register.html"** in "myapp/templates/registration/"
+
+```
+<form method="post">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <button type="submit">Register</button>
+</form>
+```
+
+Create the Profile Template in myapp/templates/accounts/profile.html(by default django checks the 'accounts' directory in templates). You can override this by placing ```LOGIN_REDIRECT_URL = '/profile/'``` in settings.py. Make sure that the path you specify (/profile/) matches the URL pattern for your profile view.
+
+```
+<!DOCTYPE html>
+<html>
+<head>
+    <title>User Profile</title>
+</head>
+<body>
+    <h1>Welcome to Your Profile Page</h1>
+    <!-- Display user-specific content or information here -->
+</body>
+</html>
+```
+
+Add the url: ```path('profile/', views.profile, name='profile'),```
+
+**Login and Logout**
+
+Django provides built-in views and templates for user login and logout. Customize them as needed:
+
+**Login:**
+
+```
+from django.contrib.auth.views import LoginView
+
+class CustomLoginView(LoginView):
+    template_name = 'registration/login.html'
+```
+
+- Add the url path: ```path('login/', views.CustomLoginView.as_view(), name='login'),```
+- Create template in templates/registration/login.html
+  
+```
+  <!-- myapp/templates/registration/login.html -->
+{% extends "base.html" %}
+
+{% block content %}
+  <h2>Login</h2>
+  <form method="post">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <button type="submit">Login</button>
+  </form>
+{% endblock %}
+```
+
+- Here's the **base.html** in templates/
+
+```
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}My Website{% endblock %}</title>
+</head>
+<body>
+    <header>
+        <!-- Header content goes here -->
+        <h1>My Website</h1>
+        <nav>
+            <!-- Navigation menu goes here -->
+            <ul>
+                <li><a href="/">Home</a></li>
+                <li><a href="{% url 'login' %}">Login</a></li>
+                <li><a href="{% url 'logout' %}">Logout</a></li>
+            </ul>
+        </nav>
+    </header>
+    <main>
+        <!-- Main content goes here -->
+        {% block content %}{% endblock %}
+    </main>
+    <footer>
+        <!-- Footer content goes here -->
+        <p>&copy; 2023 My Website</p>
+    </footer>
+</body>
+</html>
+```
+
+ The {% block %} template tags define areas where child templates can override or extend the content.
+
+- Add Login URL to Navigation
+
+In your navigation menu or any relevant place in your templates, you can add a link to the login page: ```<a href="{% url 'login' %}">Login</a>```
+
+- Add logout navigation: ```<a href="{% url 'logout' %}">Logout</a>s```
+
+
+**Logout:**
+
+```
+from django.contrib.auth.views import LogoutView
+
+class CustomLogoutView(LogoutView):
+    next_page = 'login'  # Redirect to the login page after logout
+```
+
+- Define a Logout URL Pattern
+
+```path('logout/', views.CustomLogoutView.as_view(), name='logout'),  # Map the URL to the logout view```
+
+## User Authorization
+
+Django includes a permissions system that allows you to assign specific permissions to users and groups.
+
+**User Permissions**
+
+- Define user permissions in myapp/models.py and apply them in your views. Here's an example:
+
+```
+# myapp/models.py
+class BlogPost(models.Model):
+    title = models.CharField(max_length=200)
+    content = models.TextField()
+    pub_date = models.DateTimeField('date published')
+    
+    class Meta:
+        permissions = [
+            ('can_edit_content', 'Can edit content'),
+        ]
+```
+
+
+- After defining this custom permission in the BlogPost model's Meta class, you can use it to control access to specific views or operations related to BlogPost objects. For example, you can use the @permission_required decorator to restrict access to views that allow editing BlogPost content:
+  
+```
+# myapp/views.py
+from django.contrib.auth.decorators import permission_required
+
+@permission_required('myapp.can_edit_content')
+def edit_view(request):
+    # View logic here
+```
+
+- Permission Name (can_edit_content):
+  - can_edit_content is the name of the custom permission you're defining. This name is used to identify the permission.
+- Permission Description (Can edit content):
+  - This is a human-readable description of the permission. It provides a brief explanation of what the permission allows. In this case, it suggests that users with this permission can edit content.
+
+In this example, the @permission_required decorator checks if the user has the "can_edit_content" permission (myapp.can_edit_content). If the user has the permission, they can access the edit_blog_post view.
+
+You can also use permissions in the Django admin panel to control who can edit BlogPost objects.
+
+- Checking Permissions in Views:
+
+```
+if request.user.has_perm('myapp.can_edit_content'):
+    # Allow access to content editing features
+```
+
+- To handle cases where a user doesn't have permission to access a view and display a "You're not allowed" page, you can use Django's @permission_required decorator in conjunction with a custom template for unauthorized access:
+
+create a custom template (e.g., unauthorized.html) that displays a message indicating that the user is not allowed to access the page:
+
+```
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Unauthorized</title>
+</head>
+<body>
+    <h1>You're not allowed to access this page.</h1>
+    <!-- You can provide additional information or links here -->
+</body>
+</html>
+```
+
+- Specify a login_url parameter in the view to redirect users to the "Unauthorized" page if they don't have the required permission: ```@permission_required('myapp.can_edit_content', login_url='/unauthorized/')```
+
+- Map the url: ````path('unauthorized/', views.unauthorized_page, name='unauthorized_page'),```
+
+- Create the "Unauthorized" View: ```def unauthorized_page(request): return render(request, 'unauthorized.html')```
+
+**Middleware for Permissions**
+Django's authentication middleware checks permissions for each request automatically. You can use decorators like @login_required to restrict access to views.
+
+ **Groups**
+ You can organize users into groups and assign permissions to groups rather than individual users. 
+ 
+ Example: Creating a Group and Assigning Permissions:
+
+```
+from django.contrib.auth.models import Group, Permission
+from django.contrib.contenttypes.models import ContentType
+
+# Create a group
+group = Group.objects.create(name='Content Editors')
+
+# Assign permissions to the group
+content_type = ContentType.objects.get_for_model(MyModel)
+permission = Permission.objects.get(content_type=content_type, codename='can_edit_content')
+group.permissions.add(permission)
+
+# Add users to the group
+user.groups.add(group)
+```
+
+- Heres an example of adding users to a group after registration:
+
+```
+def register(request):
+    if request.method == 'POST':
+        form = CustomUserCreationForm(request.POST)
+        if form.is_valid():
+            user = form.save()
+            user.email = form.cleaned_data['email']
+            user.save()
+            
+            # Get or create the 'All Users' group
+            group, created = Group.objects.get_or_create(name='All Users')
+            
+            # Get the content type for the BlogPost model
+            content_type = ContentType.objects.get_for_model(BlogPost)
+            
+            # Add permission to group            
+            permission = Permission.objects.get(content_type=content_type, codename='can_edit_content')
+            group.permissions.add(permission)
+
+            # Add the user to the 'All Users' group
+            user.groups.add(group)
+            
+            login(request, user)  # Log the user in
+            return redirect('profile')  # Redirect to user's profile
+    else:
+        form = CustomUserCreationForm()
+    return render(request, 'registration/register.html', {'form': form})
+```
+
+**ContentType**
+
+In Django, the ContentType model is a built-in model provided by the Django contenttypes framework. It is used to represent and manage the types of content or models that exist in your Django project. The ContentType model is particularly useful for scenarios where you need to create relationships or associations between different models in a flexible way, often seen in applications that involve permissions, content tagging, or generic relations.
+
+Here's what ContentType means and how it's typically used:
+
+- Representation of Model Types:
+
+    ContentType represents the types or classes of Django models in your project. Each ContentType instance corresponds to a specific Django model. It holds information about the app label and the model name.
+
+- Use Cases:
+
+    Permissions: In Django's permission system, ContentType is used to associate permissions with specific models. It allows you to specify which users or groups have permissions to perform certain actions on particular models.
+
+    Generic Relations: When you want to create a model that can be related to various other models without explicitly defining foreign keys for each relationship, you can use GenericForeignKey. ContentType is used in conjunction with GenericForeignKey to create generic relationships.
+
+    Content Tagging: If you want to create a tagging system where multiple models can be tagged with different categories or keywords, you can use ContentType to track the types of content that can be tagged.
+
+
