@@ -166,7 +166,7 @@ This is necessary to route requests to the app's URL patterns.
 
 Templates are HTML files that define the structure of your web pages. Create a new directory called templates inside your app's directory if it doesn't already exist. 
 
->**Django will search for templates in the app's "templates" directory by default.**
+**Django will search for templates in the app's "templates" directory by default.**
 
 
 Inside the templates directory, create an HTML file for your view (e.g., post_list.html):
@@ -268,3 +268,114 @@ In the view function, we use the render function to render the HTML template wit
 **Testing Your View**: 
 
 Navigate to ```http://127.0.0.1:8000/posts/ ```
+
+## Handling Forms in Django
+
+In Django, forms are represented by Python classes that inherit from django.forms.Form. In your "myapp" directory, create a Python file named forms.py if it doesn't exist already. 
+
+```
+# myapp/forms.py
+from django import forms
+
+class ContactForm(forms.Form):
+    name = forms.CharField(max_length=100)
+    email = forms.EmailField()
+    message = forms.CharField(widget=forms.Textarea)
+```
+
+**Render the Form in a Template**
+
+Create an HTML template (e.g., contact.html) inside the "templates" directory
+
+```
+<!-- templates/contact.html -->
+<form method="post">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <button type="submit">Submit</button>
+</form>
+
+{% if form.errors %}
+    <div class="alert alert-danger">
+        <strong>Error:</strong> Please correct the errors below.
+    </div>
+{% endif %}
+```
+
+{{ form.as_p }} is a template tag in Django's template language that is used to render a form as a series of paragraphs in an HTML form element. It's a convenient way to generate the HTML for each form field, with each field wrapped in a <p> (paragraph) HTML tag.
+
+CSRF (Cross-Site Request Forgery) is a security vulnerability that occurs when an attacker tricks a user into unknowingly making an unwanted request to a different website. To protect against CSRF attacks, Django includes a built-in mechanism called the CSRF token.
+
+A CSRF token is a random, unique value associated with a user's session. This token is added to forms in Django to verify that the form submission is legitimate and originated from the same website, rather than being a malicious request from a different source.
+
+Here's how the CSRF token works in Django:
+
+- Generation: When a user visits a Django site, a unique CSRF token is generated and associated with their session. This token is usually stored in a cookie or in the user's session data on the server.
+- Inclusion in Forms: Whenever Django renders a form in a template, it automatically includes the CSRF token as a hidden field within the form. 
+- Submission: When the user submits the form, the browser includes the CSRF token as part of the POST data sent to the server.
+- Validation: On the server side, Django checks that the received CSRF token matches the one associated with the user's session. If they match, it indicates that the form submission is legitimate and not a CSRF attack.
+
+**Handle Form Submissions in a View**
+
+In your "myapp/views.py" file, create a view function to handle the form submission and rendering:
+
+```
+# myapp/views.py
+from django.shortcuts import render, redirect
+from .forms import ContactForm
+
+
+def success_page(request):
+    return render(request, 'success.html')
+
+def contact_view(request):
+    if request.method == 'POST':
+        form = ContactForm(request.POST)
+        if form.is_valid():
+            # Process the form data (e.g., send an email)
+            return redirect('success_page')  # Redirect to a success page
+    else:
+        form = ContactForm()
+    return render(request, 'contact.html', {'form': form})
+```
+
+This view function handles both GET (initial form display) and POST (form submission) requests. If the form is valid, it can take action (e.g., send an email) and redirect to a success page.
+
+The redirect('success_page') is a Django function that is used to perform a redirect to a specific URL or view name after a successful form submission or any other action that requires a redirect in your web application.
+
+```success.html``` template:
+
+```
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Form Submission Success</title>
+</head>
+<body>
+    <h1>Thank You!</h1>
+    <p>Your form submission was successful.</p>
+    <p>We appreciate your feedback.</p>
+</body>
+</html>
+```
+
+Don't forget to add success_page view url in your apps urls.py:
+
+```
+urlpatterns = [
+    # Other URL patterns
+    path('success/', views.success_page, name='success_page'),
+]
+```
+
+**Setting Up a URL Route for the Form View**
+
+In your "myapp/urls.py" file, you need to define a URL pattern that maps to the view function responsible for handling the form
+
+```
+from django.urls import path
+from . import views
+
+urlpatterns = [
+    path('contact/', views.contact_view, name='contact_view'),
+]```
