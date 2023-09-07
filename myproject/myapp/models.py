@@ -1,5 +1,7 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser
+from django.urls import reverse
+
 
 class BlogPost(models.Model):
     title = models.CharField(max_length=200)
@@ -10,6 +12,16 @@ class BlogPost(models.Model):
         permissions = [
             ('can_edit_content', 'Can edit content'),
         ]
+        
+class Post(models.Model):
+    title = models.CharField(max_length=200)
+    content = models.TextField()
+    author = models.CharField(max_length=100)
+    published_date = models.DateTimeField(auto_now_add=True)
+
+    # The reverse() function in Django is used to dynamically generate URLs for views based on their URL patterns and the view name.
+    def get_absolute_url(self):
+        return reverse('post-detail', args=[str(self.id)])
 
 class CustomUser(AbstractUser):
     # Add custom fields here

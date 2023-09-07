@@ -106,8 +106,14 @@ USE_I18N = True
 USE_TZ = True
 
 STATIC_URL = "static/"
-# LOGIN_REDIRECT_URL = '/profile/'
 
+'''
+LOGIN_REDIRECT_URL = '/profile/'
+LOGIN_URL = '/custom-login/'  # Change this to your desired login URL
+
+LOGIN_URL: This setting specifies the URL where unauthenticated users are redirected when they try to access a view that requires authentication. It acts as the login page URL. By default, it is set to /accounts/login/.
+LOGIN_REDIRECT_URL: This setting specifies the URL where users are redirected to after a successful login. It determines where the user is taken after they log in. For example, after a user successfully logs in, they will be redirected to the URL specified in LOGIN_REDIRECT_URL. You can customize this URL to control where users are taken after logging in.
+'''
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 AUTH_USER_MODEL = 'myapp.CustomUser'

@@ -1,9 +1,75 @@
-# learn_django_drf
+## Table of Contents
+
+- [Table of Contents](#table-of-contents)
+- [Learn Django and Django Rest Framework](#learn-django-and-django-rest-framework)
+- [Set up your Django development environment](#set-up-your-django-development-environment)
+- [Django Models](#django-models)
+- [Views, Templates and URL Routing](#views-templates-and-url-routing)
+- [Handling Forms in Django](#handling-forms-in-django)
+- [User Authentication](#user-authentication)
+- [User Authorization](#user-authorization)
+- [Common Class-Based Views(CBV)](#common-class-based-viewscbv)
+
+
+## Learn Django and Django Rest Framework
+
+This repository is a learning resource for getting familiar with Django and Django Rest Framework (DRF).
+
+**Intro**
+
+Django, an open-source web framework for building web applications using Python, the MVC (Model-View-Controller)  architecture is implemented slightly differently and is often referred to as the MTV (Model-Template-View) pattern.
+
+- Model (M - Model):
+
+Model defines the structure of your database tables and how data is stored, retrieved, and manipulated.
+Django uses Object-Relational Mapping (ORM) to map Python objects to database tables. This means you define your data models in Python classes, and Django handles the database interactions for you.
+
+- Template (T - Template):
+
+The Template in Django is similar to the View in the traditional MVC pattern. It is responsible for handling the presentation logic and rendering the HTML that is sent to the user's web browser.
+Templates in Django are essentially HTML files with placeholders for dynamic content. 
+
+- View (V - View):
+
+In Django, the View is responsible for processing user requests, interacting with the Model to retrieve or manipulate data, and then passing the data to the Template for rendering.
+Views in Django are implemented as Python functions or classes. They receive incoming HTTP requests, perform any necessary data processing or business logic, and return an HTTP response, often by rendering a Template with the data.
+
+- Serialization
+
+In Django, serialization refers to the process of converting complex data types, such as Django QuerySets or model instances, into a format that can be easily rendered into JSON, XML, or other content types. The purpose of serialization is to make it easy to transmit data between your Django application and other systems or clients, particularly over HTTP in RESTful APIs.
+
+- QuerySet
+
+In Django, a queryset is a powerful and flexible way to retrieve data from your database. It represents a collection of database queries that can be used to filter and manipulate data before it's fetched from the database.
+
+Key characteristics of a queryset include:
+
+1. Lazy Evaluation: Querysets are lazily evaluated, which means they are not executed against the database until you explicitly evaluate them. This allows you to chain multiple filters and transformations together before retrieving the data, which can be more efficient.
+2. Filtering and Filtering Methods: You can use filtering methods like .filter(), .exclude(), and .get() to narrow down the results based on certain conditions, such as field values or relationships. 
+   
+```
+# Retrieve all posts published by a specific author
+queryset = Post.objects.filter(author="John Doe")
+```
+   
+3. Chaining: Querysets can be chained together to create more complex queries. This is useful for combining multiple filters and conditions.
+   
+```
+# Retrieve all published posts by John Doe with "Django" in the title
+queryset = Post.objects.filter(author="John Doe").filter(title__icontains="Django")
+``` 
+
+4. Slicing and Pagination: You can use slicing to retrieve a subset of results, which is handy for implementing pagination.
+
+```
+# Retrieve the first 10 posts
+queryset = Post.objects.all()[:10]
+```
 
 ## Set up your Django development environment 
 This repo will be used to famillirize myself with Django and Django Rest Framework(DRF)
 
-**Package:** ```pip install Django python-dotenv```
+**Package Installation:** ```pip install Django python-dotenv```
 
 **To create Django Project:** ```django-admin startproject myproject```
 
@@ -758,3 +824,186 @@ Here's what ContentType means and how it's typically used:
     Content Tagging: If you want to create a tagging system where multiple models can be tagged with different categories or keywords, you can use ContentType to track the types of content that can be tagged.
 
 
+## Common Class-Based Views(CBV)
+
+- DetailView: Displaying details of a single object.
+- ListView: Displaying a list of objects.
+- CreateView: Creating new objects.
+- UpdateView: Updating existing objects.
+- DeleteView: Deleting objects.
+
+For demonstration, lets Define the Model:
+
+- Define Model
+
+```
+# blog/models.py
+from django.db import models
+from django.urls import reverse
+
+class Post(models.Model):
+    title = models.CharField(max_length=200)
+    content = models.TextField()
+    author = models.CharField(max_length=100)
+    published_date = models.DateTimeField(auto_now_add=True)
+
+    def get_absolute_url(self):
+        return reverse('post-detail', args=[str(self.id)])
+```
+
+The reverse() function is a convention in Django, used to dynamically generate URLs for views based on their URL patterns and the view name. So, when you call reverse('post-detail', args=[str(self.id)]), it dynamically generates a URL for the detail view of the current Post instance, incorporating the primary key of that instance into the URL. This allows you to easily link to the detail page for any Post object without hardcoding the URLs, making your code more maintainable and flexible.
+
+- Create Views
+
+```
+# blog/views.py
+from django.views.generic import (
+    CreateView,
+    DetailView,
+    ListView,
+    UpdateView,
+    DeleteView,
+)
+from .models import Post
+
+# Handles creating new blog posts. It uses a form to input the title, content, and author.
+class PostCreateView(LoginRequiredMixin, CreateView):
+    model = Post
+    template_name = 'blog/post_form.html'
+    fields = ['title', 'content']
+    
+    def form_valid(self, form):
+        form.instance.author = self.request.user.username  # Set the author to the logged-in user's username
+        return super().form_valid(form)
+    
+    def get_success_url(self):
+        return reverse_lazy('post-detail', args=[str(self.object.id)])
+
+# Displays the details of a single blog post.
+class PostDetailView(DetailView):
+    model = Post
+    template_name = 'blog/post_detail.html'
+    context_object_name = 'post'
+
+class PostListView(ListView):
+    model = Post
+    template_name = 'blog/post_list.html'
+    context_object_name = 'posts'
+    ordering = ['published_date']
+
+class PostUpdateView(LoginRequiredMixin, UpdateView):
+    model = Post
+    template_name = 'blog/post_form.html'
+    fields = ['title', 'content']
+    
+    def form_valid(self, form):
+        form.instance.author = self.request.user.username  # Set the author to the logged-in user's username
+        return super().form_valid(form)
+
+class PostDeleteView(DeleteView):
+    model = Post
+    template_name = 'blog/post_confirm_delete.html'
+    success_url = '/posts/list/'  # Redirect after successful deletion
+```
+
+LoginRequiredMixin and the @login_required decorator serve a similar purpose: they both restrict access to views to authenticated users. 
+
+LoginRequiredMixin is used as a class-based mixin in Django's class-based views (CBVs) while @login_required is a decorator that you apply to function-based views (FBVs).
+
+We import reverse_lazy instead of reverse because it's recommended to use reverse_lazy for class-based views, especially in attributes like success_url.
+
+Also keep the below in mind if url path isn't working:
+
+
+In Settings: 
+```
+LOGIN_REDIRECT_URL = '/profile/'
+LOGIN_URL = '/custom-login/'  # Change this to your desired login URL
+```
+
+LOGIN_URL: This setting specifies the URL where unauthenticated users are redirected when they try to access a view that requires authentication. It acts as the login page URL. By default, it is set to /accounts/login/.
+
+LOGIN_REDIRECT_URL: This setting specifies the URL where users are redirected to after a successful login. It determines where the user is taken after they log in. For example, after a user successfully logs in, they will be redirected to the URL specified in LOGIN_REDIRECT_URL. You can customize this URL to control where users are taken after logging in.
+
+
+- Define URLs
+
+```
+# blog/urls.py
+from django.urls import path
+from . import views
+
+urlpatterns = [
+    path('post/create/', views.PostCreateView.as_view(), name='post-create'),
+    path('post/<int:pk>/', views.PostDetailView.as_view(), name='post-detail'),
+    path('posts/', views.PostListView.as_view(), name='post-list'),
+    path('post/<int:pk>/update/', views.PostUpdateView.as_view(), name='post-update'),
+    path('post/<int:pk>/delete/', views.PostDeleteView.as_view(), name='post-delete'),
+]
+```
+
+- Create HTML Templates
+
+```blog/templates/blog/post_form.html (for PostCreateView and PostUpdateView):```
+
+```
+{% extends 'base.html' %}
+
+{% block content %}
+  <h2>{% if request.resolver_match.url_name == 'post-create' %}Create{% else %}Update{% endif %} Post</h2>
+  <form method="post">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <button type="submit">Save</button>
+  </form>
+{% endblock %}
+```
+
+```blog/templates/blog/post_detail.html (for PostDetailView):```
+
+```
+{% extends 'base.html' %}
+
+{% block content %}
+  <h2>{{ post.title }}</h2>
+  <p>Author: {{ post.author }}</p>
+  <p>Published Date: {{ post.published_date }}</p>
+  <p>{{ post.content }}</p>
+  <a href="{% url 'post-update' post.pk %}">Edit</a>
+  <a href="{% url 'post-delete' post.pk %}">Delete</a>
+{% endblock %}
+```
+
+```blog/templates/blog/post_list.html (for PostListView):```
+
+```
+{% extends 'base.html' %}
+
+{% block content %}
+  <h2>Blog Posts</h2>
+  <ul>
+    {% for post in posts %}
+      <li><a href="{% url 'post-detail' post.pk %}">{{ post.title }}</a></li>
+    {% empty %}
+      <li>No posts yet.</li>
+    {% endfor %}
+  </ul>
+  <a href="{% url 'post-create' %}">Create New Post</a>
+{% endblock %}
+```
+
+```blog/templates/blog/post_confirm_delete.html (for PostDeleteView):```
+
+```
+{% extends 'base.html' %}
+
+{% block content %}
+  <h2>Confirm Deletion</h2>
+  <p>Are you sure you want to delete "{{ post.title }}"?</p>
+  <form method="post">
+    {% csrf_token %}
+    <button type="submit">Delete</button>
+    <a href="{% url 'post-detail' post.pk %}">Cancel</a>
+  </form>
+{% endblock %}
+```
